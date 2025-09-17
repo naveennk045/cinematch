@@ -1,8 +1,7 @@
-from fastapi import FastAPI, HTTPException, Depends, Request, Form, status
+from fastapi import FastAPI, HTTPException, Depends, Request, Form, status, Response
 from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
 from fastapi.staticfiles import StaticFiles
-from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from pydantic import BaseModel
 from typing import Optional, List
 import requests
@@ -12,11 +11,11 @@ import matplotlib.pyplot as plt
 import mysql.connector
 from mysql.connector import errorcode
 import bcrypt
-import jwt
 from datetime import datetime, timedelta
 import asyncio
 import httpx
 from contextlib import asynccontextmanager
+import secrets
 
 
 # Pydantic models
@@ -45,11 +44,6 @@ class Genre(BaseModel):
     genre: str
 
 
-class Token(BaseModel):
-    access_token: str
-    token_type: str
-
-
 class MovieDetails(BaseModel):
     id: int
     title: str
@@ -59,12 +53,10 @@ class MovieDetails(BaseModel):
     vote_average: Optional[float] = None
 
 
-# Configuration
-TMDB_API_KEY = "64270cfedbe3933ef55f0be854ba29a2"
+# Configuration - UPDATE THESE WITH YOUR ACTUAL TMDB CREDENTIALS
+TMDB_ACCESS_TOKEN = "64270cfedbe3933ef55f0be854ba29a2"  # Get this from TMDB
 TMDB_BASE_URL = "https://api.themoviedb.org/3"
-SECRET_KEY = "your-secret-key-here"
-ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES = 30
+SECRET_KEY = secrets.token_hex(32)  # Generate a secure secret key
 
 # Database configuration
 DB_CONFIG = {
@@ -74,7 +66,8 @@ DB_CONFIG = {
     "database": "cinematch"
 }
 
-security = HTTPBearer()
+# Session storage (in production, use a proper session store like Redis)
+sessions = {}
 
 
 def get_db_connection():
@@ -159,55 +152,78 @@ templates = Jinja2Templates(directory="templates")
 
 
 # Utility functions
-def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
-    to_encode = data.copy()
-    if expires_delta:
-        expire = datetime.utcnow() + expires_delta
-    else:
-        expire = datetime.utcnow() + timedelta(minutes=15)
-    to_encode.update({"exp": expire})
-    encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
-    return encoded_jwt
+def create_session(user_id: int) -> str:
+    """Create a new session for the user"""
+    session_id = secrets.token_urlsafe(32)
+    sessions[session_id] = {
+        "user_id": user_id,
+        "created_at": datetime.now()
+    }
+    return session_id
 
 
-def verify_token(credentials: HTTPAuthorizationCredentials = Depends(security)):
-    try:
-        payload = jwt.decode(credentials.credentials, SECRET_KEY, algorithms=[ALGORITHM])
-        user_id: int = payload.get("sub")
-        if user_id is None:
-            raise HTTPException(status_code=401, detail="Invalid token")
-        return user_id
-    except jwt.PyJWTError:
-        raise HTTPException(status_code=401, detail="Invalid token")
+def get_session(session_id: str) -> Optional[dict]:
+    """Get session data by session ID"""
+    if session_id in sessions:
+        return sessions[session_id]
+    return None
 
 
-def get_current_user(user_id: int = Depends(verify_token)):
+def delete_session(session_id: str):
+    """Delete a session"""
+    if session_id in sessions:
+        del sessions[session_id]
+
+
+def get_current_user(request: Request):
+    """Get current user from session"""
+    session_id = request.cookies.get("session_id")
+    if not session_id:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+
+    session_data = get_session(session_id)
+    if not session_data:
+        raise HTTPException(status_code=401, detail="Invalid session")
+
+    # Check if session is expired (30 minutes)
+    if datetime.now() - session_data["created_at"] > timedelta(minutes=30):
+        delete_session(session_id)
+        raise HTTPException(status_code=401, detail="Session expired")
+
+    # Update session creation time to extend session
+    session_data["created_at"] = datetime.now()
+
+    # Get user details from database
     conn = get_db_connection()
     cursor = conn.cursor(dictionary=True)
-    cursor.execute("SELECT id, username FROM users WHERE id = %s", (user_id,))
+    cursor.execute("SELECT id, username FROM users WHERE id = %s", (session_data["user_id"],))
     user = cursor.fetchone()
     conn.close()
-    if user is None:
-        raise HTTPException(status_code=404, detail="User not found")
+
+    if not user:
+        delete_session(session_id)
+        raise HTTPException(status_code=401, detail="User not found")
+
     return user
 
 
 async def get_movie_details(movie_id: int) -> Optional[dict]:
     """Async function to get movie details from TMDB API."""
-    url = f"{TMDB_BASE_URL}/movie/{movie_id}?api_key={TMDB_API_KEY}"
+    url = f"{TMDB_BASE_URL}/movie/{movie_id}"
+    headers = {"Authorization": f"Bearer {TMDB_ACCESS_TOKEN}"}
+
     async with httpx.AsyncClient() as client:
         try:
-            response = await client.get(url)
+            response = await client.get(url, headers=headers)
             if response.status_code == 200:
                 return response.json()
         except Exception as e:
             print(f"Error fetching movie details: {e}")
     return None
 
-
 async def search_movies(query: str) -> List[dict]:
     """Async function to search movies from TMDB API."""
-    url = f"{TMDB_BASE_URL}/search/movie?api_key={TMDB_API_KEY}&query={query}"
+    url = f"{TMDB_BASE_URL}/search/movie?api_key={TMDB_ACCESS_TOKEN}&query={query}"
     async with httpx.AsyncClient() as client:
         try:
             response = await client.get(url)
@@ -219,10 +235,42 @@ async def search_movies(query: str) -> List[dict]:
     return []
 
 
+async def get_movie_recommendations(movie_id: int) -> List[dict]:
+    """Async function to get movie recommendations from TMDB API."""
+    url = f"{TMDB_BASE_URL}/movie/{movie_id}/recommendations"
+    headers = {"Authorization": f"Bearer {TMDB_ACCESS_TOKEN}"}
+
+    async with httpx.AsyncClient() as client:
+        try:
+            response = await client.get(url, headers=headers)
+            if response.status_code == 200:
+                data = response.json()
+                return data.get('results', [])
+        except Exception as e:
+            print(f"Error fetching recommendations: {e}")
+    return []
+
+
+async def get_popular_movies() -> List[dict]:
+    """Async function to get popular movies from TMDB API."""
+    url = f"{TMDB_BASE_URL}/movie/popular"
+    headers = {"Authorization": f"Bearer {TMDB_ACCESS_TOKEN}"}
+
+    async with httpx.AsyncClient() as client:
+        try:
+            response = await client.get(url, headers=headers)
+            if response.status_code == 200:
+                data = response.json()
+                return data.get('results', [])
+        except Exception as e:
+            print(f"Error fetching popular movies: {e}")
+    return []
+
+
 # Authentication routes
 @app.get("/", response_class=HTMLResponse)
 async def home(request: Request):
-    return templates.TemplateResponse("login.html", {"request": request})
+    return RedirectResponse(url="/login")
 
 
 @app.get("/login", response_class=HTMLResponse)
@@ -231,7 +279,7 @@ async def login_page(request: Request):
 
 
 @app.post("/login")
-async def login(request: Request, username: str = Form(...), password: str = Form(...)):
+async def login(request: Request, response: Response, username: str = Form(...), password: str = Form(...)):
     conn = get_db_connection()
     cursor = conn.cursor(dictionary=True)
     cursor.execute("SELECT * FROM users WHERE username = %s", (username,))
@@ -239,12 +287,9 @@ async def login(request: Request, username: str = Form(...), password: str = For
     conn.close()
 
     if user and bcrypt.checkpw(password.encode('utf-8'), user['password'].encode('utf-8')):
-        access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
-        access_token = create_access_token(
-            data={"sub": str(user['id'])}, expires_delta=access_token_expires
-        )
+        session_id = create_session(user['id'])
         response = RedirectResponse(url="/dashboard", status_code=status.HTTP_302_FOUND)
-        response.set_cookie(key="access_token", value=f"Bearer {access_token}", httponly=True)
+        response.set_cookie(key="session_id", value=session_id, httponly=True)
         return response
     else:
         return templates.TemplateResponse("login.html", {
@@ -259,7 +304,7 @@ async def register_page(request: Request):
 
 
 @app.post("/register")
-async def register(request: Request, username: str = Form(...), password: str = Form(...)):
+async def register(request: Request, response: Response, username: str = Form(...), password: str = Form(...)):
     conn = get_db_connection()
     cursor = conn.cursor()
 
@@ -268,8 +313,17 @@ async def register(request: Request, username: str = Form(...), password: str = 
         cursor.execute("INSERT INTO users (username, password) VALUES (%s, %s)",
                        (username, hashed_password.decode('utf-8')))
         conn.commit()
+
+        # Get the new user ID
+        cursor.execute("SELECT id FROM users WHERE username = %s", (username,))
+        user_id = cursor.fetchone()[0]
         conn.close()
-        return RedirectResponse(url="/login", status_code=status.HTTP_302_FOUND)
+
+        # Create session and redirect to dashboard
+        session_id = create_session(user_id)
+        response = RedirectResponse(url="/dashboard", status_code=status.HTTP_302_FOUND)
+        response.set_cookie(key="session_id", value=session_id, httponly=True)
+        return response
     except mysql.connector.IntegrityError:
         conn.close()
         return templates.TemplateResponse("register.html", {
@@ -279,39 +333,32 @@ async def register(request: Request, username: str = Form(...), password: str = 
 
 
 @app.get("/logout")
-async def logout():
+async def logout(response: Response):
+    # Remove session
     response = RedirectResponse(url="/login", status_code=status.HTTP_302_FOUND)
-    response.delete_cookie(key="access_token")
+    response.delete_cookie(key="session_id")
     return response
 
 
 # Dashboard and main functionality
 @app.get("/dashboard", response_class=HTMLResponse)
 async def dashboard(request: Request):
-    # Extract token from cookie
-    token = request.cookies.get("access_token")
-    if not token or not token.startswith("Bearer "):
-        return RedirectResponse(url="/login", status_code=status.HTTP_302_FOUND)
-
     try:
-        # Remove "Bearer " prefix
-        token = token[7:]
-        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-        user_id = int(payload.get("sub"))
-    except:
+        user = get_current_user(request)
+    except HTTPException:
         return RedirectResponse(url="/login", status_code=status.HTTP_302_FOUND)
 
     conn = get_db_connection()
     cursor = conn.cursor(dictionary=True)
 
     cursor.execute("SELECT movie_id, title, rating FROM watched_movies WHERE user_id = %s ORDER BY watched_at DESC",
-                   (user_id,))
+                   (user['id'],))
     watched_data = cursor.fetchall()
 
-    cursor.execute("SELECT movie_id, title FROM liked_movies WHERE user_id = %s ORDER BY liked_at DESC", (user_id,))
+    cursor.execute("SELECT movie_id, title FROM liked_movies WHERE user_id = %s ORDER BY liked_at DESC", (user['id'],))
     liked_data = cursor.fetchall()
 
-    cursor.execute("SELECT genre FROM genres WHERE user_id = %s", (user_id,))
+    cursor.execute("SELECT genre FROM genres WHERE user_id = %s", (user['id'],))
     genres = [row['genre'] for row in cursor.fetchall()]
 
     conn.close()
@@ -325,12 +372,12 @@ async def dashboard(request: Request):
 
 # API endpoints for movie operations
 @app.post("/api/watched-movie")
-async def add_watched_movie(movie: WatchedMovie, user_id: int = Depends(verify_token)):
+async def add_watched_movie(movie: WatchedMovie, user: dict = Depends(get_current_user)):
     conn = get_db_connection()
     cursor = conn.cursor()
     cursor.execute(
         "INSERT INTO watched_movies (user_id, movie_id, title, rating) VALUES (%s, %s, %s, %s)",
-        (user_id, movie.movie_id, movie.title, movie.rating)
+        (user['id'], movie.movie_id, movie.title, movie.rating)
     )
     conn.commit()
     conn.close()
@@ -338,12 +385,12 @@ async def add_watched_movie(movie: WatchedMovie, user_id: int = Depends(verify_t
 
 
 @app.post("/api/liked-movie")
-async def add_liked_movie(movie: LikedMovie, user_id: int = Depends(verify_token)):
+async def add_liked_movie(movie: LikedMovie, user: dict = Depends(get_current_user)):
     conn = get_db_connection()
     cursor = conn.cursor()
     cursor.execute(
         "INSERT INTO liked_movies (user_id, movie_id, title) VALUES (%s, %s, %s)",
-        (user_id, movie.movie_id, movie.title)
+        (user['id'], movie.movie_id, movie.title)
     )
     conn.commit()
     conn.close()
@@ -351,10 +398,10 @@ async def add_liked_movie(movie: LikedMovie, user_id: int = Depends(verify_token
 
 
 @app.post("/api/genre")
-async def add_genre(genre: Genre, user_id: int = Depends(verify_token)):
+async def add_genre(genre: Genre, user: dict = Depends(get_current_user)):
     conn = get_db_connection()
     cursor = conn.cursor()
-    cursor.execute("INSERT INTO genres (user_id, genre) VALUES (%s, %s)", (user_id, genre.genre))
+    cursor.execute("INSERT INTO genres (user_id, genre) VALUES (%s, %s)", (user['id'], genre.genre))
     conn.commit()
     conn.close()
     return {"success": True}
@@ -368,60 +415,47 @@ async def search_movies_api(q: str):
 
 @app.get("/recommendations", response_class=HTMLResponse)
 async def recommendations(request: Request):
-    # Extract token from cookie
-    token = request.cookies.get("access_token")
-    if not token or not token.startswith("Bearer "):
-        return RedirectResponse(url="/login", status_code=status.HTTP_302_FOUND)
-
     try:
-        token = token[7:]
-        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-        user_id = int(payload.get("sub"))
-    except:
+        user = get_current_user(request)
+    except HTTPException:
         return RedirectResponse(url="/login", status_code=status.HTTP_302_FOUND)
 
     conn = get_db_connection()
     cursor = conn.cursor(dictionary=True)
 
     # Get IDs of movies the user has already seen
-    cursor.execute("SELECT movie_id FROM watched_movies WHERE user_id = %s", (user_id,))
+    cursor.execute("SELECT movie_id FROM watched_movies WHERE user_id = %s", (user['id'],))
     watched_movie_ids = {row['movie_id'] for row in cursor.fetchall()}
 
-    cursor.execute("SELECT movie_id FROM liked_movies WHERE user_id = %s", (user_id,))
+    cursor.execute("SELECT movie_id FROM liked_movies WHERE user_id = %s", (user['id'],))
     liked_movie_ids = {row['movie_id'] for row in cursor.fetchall()}
 
     all_seen_movie_ids = watched_movie_ids.union(liked_movie_ids)
 
     # Find the last liked movie to use as a seed
-    cursor.execute("SELECT movie_id FROM liked_movies WHERE user_id = %s ORDER BY liked_at DESC LIMIT 1", (user_id,))
+    cursor.execute("SELECT movie_id FROM liked_movies WHERE user_id = %s ORDER BY liked_at DESC LIMIT 1", (user['id'],))
     last_liked_movie = cursor.fetchone()
 
     conn.close()
 
     recommended_movies = []
-    api_url = ""
-
-    if last_liked_movie:
-        # Get recommendations based on the user's last liked movie
-        seed_movie_id = last_liked_movie['movie_id']
-        api_url = f"{TMDB_BASE_URL}/movie/{seed_movie_id}/recommendations?api_key={TMDB_API_KEY}"
-    else:
-        # Fallback to popular movies if the user has no liked movies
-        api_url = f"{TMDB_BASE_URL}/movie/popular?api_key={TMDB_API_KEY}"
 
     try:
-        async with httpx.AsyncClient() as client:
-            response = await client.get(api_url)
-            response.raise_for_status()
-            data = response.json()
+        if last_liked_movie:
+            # Get recommendations based on the user's last liked movie
+            seed_movie_id = last_liked_movie['movie_id']
+            movies_data = await get_movie_recommendations(seed_movie_id)
+        else:
+            # Fallback to popular movies if the user has no liked movies
+            movies_data = await get_popular_movies()
 
-            # Filter out movies the user has already seen and ensure they have a poster
-            for movie in data.get('results', []):
-                if movie.get('id') and movie.get('poster_path'):
-                    if movie['id'] not in all_seen_movie_ids:
-                        recommended_movies.append(movie)
-                        if len(recommended_movies) >= 20:  # Limit to 20 recommendations
-                            break
+        # Filter out movies the user has already seen and ensure they have a poster
+        for movie in movies_data:
+            if movie.get('id') and movie.get('poster_path'):
+                if movie['id'] not in all_seen_movie_ids:
+                    recommended_movies.append(movie)
+                    if len(recommended_movies) >= 20:  # Limit to 20 recommendations
+                        break
     except Exception as e:
         print(f"API request failed: {e}")
         return templates.TemplateResponse('recommendations.html', {
@@ -437,10 +471,10 @@ async def recommendations(request: Request):
 
 
 @app.get("/generate-rating-chart")
-async def generate_rating_chart(user_id: int = Depends(verify_token)):
+async def generate_rating_chart(user: dict = Depends(get_current_user)):
     conn = get_db_connection()
     query = "SELECT title, rating FROM watched_movies WHERE user_id = %s ORDER BY watched_at DESC LIMIT 10"
-    df = pd.read_sql(query, conn, params=(user_id,))
+    df = pd.read_sql(query, conn, params=(user['id'],))
     conn.close()
 
     if df.empty:

@@ -348,307 +348,289 @@
     </style>
 </head>
 <body>
-    <header class="header">
-        <div class="nav-container">
-            <div class="logo">
-                <i class="fas fa-film"></i> CineMatch
-            </div>
-            <div class="nav-buttons">
-                <a href="/recommendations" class="btn btn-primary">
-                    <i class="fas fa-magic"></i> Get Recommendations
-                </a>
-                <a href="/generate-rating-chart" class="btn btn-secondary">
-                    <i class="fas fa-chart-bar"></i> View Stats
-                </a>
-                <a href="/logout" class="btn btn-secondary">
-                    <i class="fas fa-sign-out-alt"></i> Logout
-                </a>
-            </div>
+<header class="header">
+    <div class="nav-container">
+        <div class="logo">
+            <i class="fas fa-film"></i> CineMatch
         </div>
-    </header>
-
-    <div class="container">
-        <div class="welcome-section">
-            <h1>Your Movie Dashboard</h1>
-            <p>Track, rate, and discover your next favorite film</p>
+        <div class="nav-buttons">
+            <a href="/recommendations" class="btn btn-primary">
+                <i class="fas fa-magic"></i> Get Recommendations
+            </a>
+            <a href="/generate-rating-chart" class="btn btn-secondary">
+                <i class="fas fa-chart-bar"></i> View Stats
+            </a>
+            <a href="/logout" class="btn btn-secondary">
+                <i class="fas fa-sign-out-alt"></i> Logout
+            </a>
         </div>
+    </div>
+</header>
 
-        <div class="stats-grid">
-            <div class="stat-card">
-                <div class="stat-number">{{ watched_data|length }}</div>
-                <div class="stat-label">Movies Watched</div>
-            </div>
-            <div class="stat-card">
-                <div class="stat-number">{{ liked_data|length }}</div>
-                <div class="stat-label">Movies Liked</div>
-            </div>
-            <div class="stat-card">
-                <div class="stat-number">{{ genres|length }}</div>
-                <div class="stat-label">Favorite Genres</div>
-            </div>
+<div class="container">
+    <div class="welcome-section">
+        <h1>Your Movie Dashboard</h1>
+        <p>Track, rate, and discover your next favorite film</p>
+    </div>
+
+    <div class="stats-grid">
+        <div class="stat-card">
+            <div class="stat-number">{{ watched_data|length }}</div>
+            <div class="stat-label">Movies Watched</div>
         </div>
-
-        <div class="dashboard-grid">
-            <div class="section-card">
-                <div class="section-title">
-                    <i class="fas fa-eye"></i> Add Watched Movie
-                </div>
-
-                <div class="search-container">
-                    <i class="fas fa-search search-icon"></i>
-                    <input type="text" class="search-input" id="searchWatched" placeholder="Search for a movie..." onkeyup="searchMovies('watched')">
-                    <div class="search-results" id="searchResultsWatched"></div>
-                </div>
-
-                <input type="text" class="movie-input" id="watchedMovieTitle" placeholder="Selected Movie Title" readonly>
-                <input type="hidden" id="watchedMovieId">
-                <input type="number" class="rating-input" id="rating" placeholder="Your Rating (1-10)" min="1" max="10">
-                <button class="add-btn" onclick="addWatchedMovie()">
-                    <i class="fas fa-plus"></i> Add to Watched
-                </button>
-
-                <div class="movie-list">
-                    {% if watched_data %}
-                        {% for movie in watched_data %}
-                            <div class="movie-item">
-                                <span class="movie-title">{{ movie.title }}</span>
-                                <span class="movie-rating">{{ movie.rating }}/10</span>
-                            </div>
-                        {% endfor %}
-                    {% else %}
-                        <div class="empty-state">No watched movies yet. Start adding some!</div>
-                    {% endif %}
-                </div>
-            </div>
-
-            <div class="section-card">
-                <div class="section-title">
-                    <i class="fas fa-heart"></i> Add Liked Movie
-                </div>
-
-                <div class="search-container">
-                    <i class="fas fa-search search-icon"></i>
-                    <input type="text" class="search-input" id="searchLiked" placeholder="Search for a movie..." onkeyup="searchMovies('liked')">
-                    <div class="search-results" id="searchResultsLiked"></div>
-                </div>
-
-                <input type="text" class="movie-input" id="likedMovieTitle" placeholder="Selected Movie Title" readonly>
-                <input type="hidden" id="likedMovieId">
-                <button class="add-btn" onclick="addLikedMovie()">
-                    <i class="fas fa-heart"></i> Add to Liked
-                </button>
-
-                <div class="movie-list">
-                    {% if liked_data %}
-                        {% for movie in liked_data %}
-                            <div class="movie-item">
-                                <span class="movie-title">{{ movie.title }}</span>
-                                <i class="fas fa-heart" style="color: #ff6b6b;"></i>
-                            </div>
-                        {% endfor %}
-                    {% else %}
-                        <div class="empty-state">No liked movies yet. Start building your favorites!</div>
-                    {% endif %}
-                </div>
-            </div>
-
-            <div class="section-card">
-                <div class="section-title">
-                    <i class="fas fa-tags"></i> Favorite Genres
-                </div>
-
-                <input type="text" class="movie-input" id="genreInput" placeholder="Enter a genre (e.g., Action, Comedy, Drama)">
-                <button class="add-btn" onclick="addGenre()">
-                    <i class="fas fa-plus"></i> Add Genre
-                </button>
-
-                <div class="movie-list">
-                    {% if genres %}
-                        {% for genre in genres %}
-                            <div class="movie-item">
-                                <span class="movie-title">{{ genre }}</span>
-                                <i class="fas fa-tag" style="color: #ffd700;"></i>
-                            </div>
-                        {% endfor %}
-                    {% else %}
-                        <div class="empty-state">No favorite genres yet. Add some to get better recommendations!</div>
-                    {% endif %}
-                </div>
-            </div>
+        <div class="stat-card">
+            <div class="stat-number">{{ liked_data|length }}</div>
+            <div class="stat-label">Movies Liked</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-number">{{ genres|length }}</div>
+            <div class="stat-label">Favorite Genres</div>
         </div>
     </div>
 
-    <script>
-        let searchTimeout;
+    <div class="dashboard-grid">
+        <div class="section-card">
+            <div class="section-title">
+                <i class="fas fa-eye"></i> Add Watched Movie
+            </div>
 
-        async function searchMovies(type) {
-            const searchInput = document.getElementById(`search${type.charAt(0).toUpperCase() + type.slice(1)}`);
-            const resultsDiv = document.getElementById(`searchResults${type.charAt(0).toUpperCase() + type.slice(1)}`);
-            const query = searchInput.value.trim();
+            <div class="search-container">
+                <i class="fas fa-search search-icon"></i>
+                <input type="text" class="search-input" id="searchWatched" placeholder="Search for a movie..."
+                       onkeyup="searchMovies('watched')">
+                <div class="search-results" id="searchResultsWatched"></div>
+            </div>
 
-            if (query.length < 2) {
-                resultsDiv.style.display = 'none';
-                return;
-            }
+            <input type="text" class="movie-input" id="watchedMovieTitle" placeholder="Selected Movie Title" readonly>
+            <input type="hidden" id="watchedMovieId">
+            <input type="number" class="rating-input" id="rating" placeholder="Your Rating (1-10)" min="1" max="10">
+            <button class="add-btn" onclick="addWatchedMovie()">
+                <i class="fas fa-plus"></i> Add to Watched
+            </button>
 
-            clearTimeout(searchTimeout);
-            searchTimeout = setTimeout(async () => {
-                try {
-                    const response = await fetch(`/api/search-movies?q=${encodeURIComponent(query)}`);
-                    const data = await response.json();
+            <div class="movie-list">
+                {% if watched_data %}
+                {% for movie in watched_data %}
+                <div class="movie-item">
+                    <span class="movie-title">{{ movie.title }}</span>
+                    <span class="movie-rating">{{ movie.rating }}/10</span>
+                </div>
+                {% endfor %}
+                {% else %}
+                <div class="empty-state">No watched movies yet. Start adding some!</div>
+                {% endif %}
+            </div>
+        </div>
 
-                    resultsDiv.innerHTML = '';
-                    if (data.results && data.results.length > 0) {
-                        data.results.slice(0, 5).forEach(movie => {
-                            if (movie.title && movie.id) {
-                                const item = document.createElement('div');
-                                item.className = 'search-result-item';
-                                item.innerHTML = `
-                                    <strong>${movie.title}</strong>
-                                    ${movie.release_date ? `<br><small>(${movie.release_date.split('-')[0]})</small>` : ''}
-                                `;
-                                item.onclick = () => selectMovie(movie, type);
-                                resultsDiv.appendChild(item);
-                            }
-                        });
-                        resultsDiv.style.display = 'block';
-                    } else {
-                        resultsDiv.style.display = 'none';
-                    }
-                } catch (error) {
-                    console.error('Search error:', error);
-                    resultsDiv.style.display = 'none';
-                }
-            }, 300);
+        <div class="section-card">
+            <div class="section-title">
+                <i class="fas fa-heart"></i> Add Liked Movie
+            </div>
+
+            <div class="search-container">
+                <i class="fas fa-search search-icon"></i>
+                <input type="text" class="search-input" id="searchLiked" placeholder="Search for a movie..."
+                       onkeyup="searchMovies('liked')">
+                <div class="search-results" id="searchResultsLiked"></div>
+            </div>
+
+            <input type="text" class="movie-input" id="likedMovieTitle" placeholder="Selected Movie Title" readonly>
+            <input type="hidden" id="likedMovieId">
+            <button class="add-btn" onclick="addLikedMovie()">
+                <i class="fas fa-heart"></i> Add to Liked
+            </button>
+
+            <div class="movie-list">
+                {% if liked_data %}
+                {% for movie in liked_data %}
+                <div class="movie-item">
+                    <span class="movie-title">{{ movie.title }}</span>
+                    <i class="fas fa-heart" style="color: #ff6b6b;"></i>
+                </div>
+                {% endfor %}
+                {% else %}
+                <div class="empty-state">No liked movies yet. Start building your favorites!</div>
+                {% endif %}
+            </div>
+        </div>
+
+        <div class="section-card">
+            <div class="section-title">
+                <i class="fas fa-tags"></i> Favorite Genres
+            </div>
+
+            <input type="text" class="movie-input" id="genreInput"
+                   placeholder="Enter a genre (e.g., Action, Comedy, Drama)">
+            <button class="add-btn" onclick="addGenre()">
+                <i class="fas fa-plus"></i> Add Genre
+            </button>
+
+            <div class="movie-list">
+                {% if genres %}
+                {% for genre in genres %}
+                <div class="movie-item">
+                    <span class="movie-title">{{ genre }}</span>
+                    <i class="fas fa-tag" style="color: #ffd700;"></i>
+                </div>
+                {% endfor %}
+                {% else %}
+                <div class="empty-state">No favorite genres yet. Add some to get better recommendations!</div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    async function searchMovies(type) {
+        const query = document.getElementById(
+            type === 'watched' ? 'searchWatched' : 'searchLiked'
+        ).value.trim();
+
+        const resultsContainer = document.getElementById(
+            type === 'watched' ? 'searchResultsWatched' : 'searchResultsLiked'
+        );
+
+        resultsContainer.innerHTML = '';
+        if (!query) {
+            resultsContainer.style.display = 'none';
+            return;
         }
 
-        function selectMovie(movie, type) {
-            document.getElementById(`${type}MovieTitle`).value = movie.title;
-            document.getElementById(`${type}MovieId`).value = movie.id;
-            document.getElementById(`searchResults${type.charAt(0).toUpperCase() + type.slice(1)}`).style.display = 'none';
-        }
+        try {
+            const response = await fetch(`/api/search-movies?q=${encodeURIComponent(query)}`);
+            const data = await response.json();
 
-        async function addWatchedMovie() {
-            const movieId = document.getElementById('watchedMovieId').value;
-            const title = document.getElementById('watchedMovieTitle').value;
-            const rating = document.getElementById('rating').value;
-
-            if (!movieId || !title || !rating) {
-                alert('Please search and select a movie, then provide a rating.');
-                return;
-            }
-
-            if (rating < 1 || rating > 10) {
-                alert('Rating must be between 1 and 10.');
-                return;
-            }
-
-            try {
-                const response = await fetch('/api/watched-movie', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${getCookie('access_token')?.replace('Bearer ', '')}`
-                    },
-                    body: JSON.stringify({
-                        movie_id: parseInt(movieId),
-                        title: title,
-                        rating: parseInt(rating)
-                    })
+            if (data.results.length > 0) {
+                resultsContainer.style.display = 'block';
+                data.results.forEach(movie => {
+                    const div = document.createElement('div');
+                    div.classList.add('search-result-item');
+                    div.innerText = `${movie.title} (${movie.release_date?.split('-')[0] || 'N/A'})`;
+                    div.onclick = () => {
+                        if (type === 'watched') {
+                            document.getElementById('watchedMovieTitle').value = movie.title;
+                            document.getElementById('watchedMovieId').value = movie.id;
+                        } else {
+                            document.getElementById('likedMovieTitle').value = movie.title;
+                            document.getElementById('likedMovieId').value = movie.id;
+                        }
+                        resultsContainer.innerHTML = '';
+                        resultsContainer.style.display = 'none';
+                    };
+                    resultsContainer.appendChild(div);
                 });
+            } else {
+                resultsContainer.style.display = 'block';
+                resultsContainer.innerHTML = '<div class="search-result-item">No results found</div>';
+            }
+        } catch (err) {
+            console.error('Error searching movies:', err);
+        }
+    }
+    async function addWatchedMovie() {
+        const movieId = document.getElementById('watchedMovieId').value;
+        const title = document.getElementById('watchedMovieTitle').value;
+        const rating = document.getElementById('rating').value;
 
-                if (response.ok) {
-                    alert('Movie added to watched list!');
-                    location.reload();
-                } else {
-                    alert('Error adding movie. Please try again.');
-                }
-            } catch (error) {
-                console.error('Error:', error);
+        if (!movieId || !title || !rating) {
+            alert('Please search and select a movie, then provide a rating.');
+            return;
+        }
+
+        if (rating < 1 || rating > 10) {
+            alert('Rating must be between 1 and 10.');
+            return;
+        }
+
+        try {
+            const response = await fetch('/api/watched-movie', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    movie_id: parseInt(movieId),
+                    title: title,
+                    rating: parseInt(rating)
+                })
+            });
+
+            if (response.ok) {
+                alert('Movie added to watched list!');
+                location.reload();
+            } else {
                 alert('Error adding movie. Please try again.');
             }
+        } catch (error) {
+            console.error('Error:', error);
+            alert('Error adding movie. Please try again.');
+        }
+    }
+
+    async function addLikedMovie() {
+        const movieId = document.getElementById('likedMovieId').value;
+        const title = document.getElementById('likedMovieTitle').value;
+
+        if (!movieId || !title) {
+            alert('Please search and select a movie.');
+            return;
         }
 
-        async function addLikedMovie() {
-            const movieId = document.getElementById('likedMovieId').value;
-            const title = document.getElementById('likedMovieTitle').value;
+        try {
+            const response = await fetch('/api/liked-movie', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    movie_id: parseInt(movieId),
+                    title: title
+                })
+            });
 
-            if (!movieId || !title) {
-                alert('Please search and select a movie.');
-                return;
-            }
-
-            try {
-                const response = await fetch('/api/liked-movie', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${getCookie('access_token')?.replace('Bearer ', '')}`
-                    },
-                    body: JSON.stringify({
-                        movie_id: parseInt(movieId),
-                        title: title
-                    })
-                });
-
-                if (response.ok) {
-                    alert('Movie added to liked list!');
-                    location.reload();
-                } else {
-                    alert('Error adding movie. Please try again.');
-                }
-            } catch (error) {
-                console.error('Error:', error);
+            if (response.ok) {
+                alert('Movie added to liked list!');
+                location.reload();
+            } else {
                 alert('Error adding movie. Please try again.');
             }
+        } catch (error) {
+            console.error('Error:', error);
+            alert('Error adding movie. Please try again.');
+        }
+    }
+
+    async function addGenre() {
+        const genre = document.getElementById('genreInput').value.trim();
+
+        if (!genre) {
+            alert('Please enter a genre.');
+            return;
         }
 
-        async function addGenre() {
-            const genre = document.getElementById('genreInput').value.trim();
+        try {
+            const response = await fetch('/api/genre', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    genre: genre
+                })
+            });
 
-            if (!genre) {
-                alert('Please enter a genre.');
-                return;
-            }
-
-            try {
-                const response = await fetch('/api/genre', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${getCookie('access_token')?.replace('Bearer ', '')}`
-                    },
-                    body: JSON.stringify({
-                        genre: genre
-                    })
-                });
-
-                if (response.ok) {
-                    alert('Genre added!');
-                    location.reload();
-                } else {
-                    alert('Error adding genre. Please try again.');
-                }
-            } catch (error) {
-                console.error('Error:', error);
+            if (response.ok) {
+                alert('Genre added!');
+                location.reload();
+            } else {
                 alert('Error adding genre. Please try again.');
             }
+        } catch (error) {
+            console.error('Error:', error);
+            alert('Error adding genre. Please try again.');
         }
-
-        function getCookie(name) {
-            const value = `; ${document.cookie}`;
-            const parts = value.split(`; ${name}=`);
-            if (parts.length === 2) return parts.pop().split(';').shift();
-        }
-
-        // Hide search results when clicking outside
-        document.addEventListener('click', function(e) {
-            if (!e.target.closest('.search-container')) {
-                document.querySelectorAll('.search-results').forEach(div => {
-                    div.style.display = 'none';
-                });
-            }
-        });
-    </script>
+    }
+</script>
 </body>
 </html>
